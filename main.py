@@ -1,4 +1,5 @@
 import argparse
+import time
 import ray
 from ray import tune
 from ray.rllib.models import ModelCatalog
@@ -38,6 +39,8 @@ if __name__ == "__main__":
             action = agent.compute_action(obs)
             obs, r, done, _ = snake_env.step(action)
             if done:
+                time.sleep(1)
+                print("dead")
                 snake_env.reset()
                 obs = snake_env.parse_state()
     else:
@@ -46,7 +49,8 @@ if __name__ == "__main__":
         i = 0
         while True:
             result = agent.train()
-            print(result)
+            fields = ["episode_reward_max", "episode_reward_min", "episode_reward_mean", "episode_len_mean"]
+            print(", ".join(["{}: {}".format(k, result[k]) for k in result if k in fields]))
             if i % 10 == 0:
                 ckpt_path = agent.save()
                 print("saved to {}".format(ckpt_path))
