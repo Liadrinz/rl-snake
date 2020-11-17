@@ -46,14 +46,14 @@ class SnakeEnv(gym.Env):
         if (self.snake[0] == self.food).all():
             self.snake.insert(0, self.food + self._direction_map[self.direction])
             self.food = self.random_food()
-            return 1.0, False
+            return 10.0, False
         # 撞墙(越界)
         if not ((0 <= self.snake[0][0] < self.bx) and (0 <= self.snake[0][1] < self.by)):
             return -10.0, True
         # 撞到自己
         if (self.snake[0] == self.snake[1:]).all(axis=1).any():
             return -10.0, True
-        return -0.1, False
+        return 0.1, False
     
     def random_food(self):
         choices_available = self._full_set.difference(set([(x, y) for x, y in self.snake]))
