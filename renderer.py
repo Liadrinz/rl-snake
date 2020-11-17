@@ -37,14 +37,21 @@ class SnakeRenderer:
             self.init_food()
         self.food_geom.v = self.get_square(*self.env.food)
         i = 0
-        for snake_geom in self.snake_geoms:
-            snake_geom.v = self.get_square(*self.env.snake[i])
-            i += 1
         while i < len(self.env.snake):
-            rect = rendering.make_polygon(v=self.get_square(*self.env.snake[i]))
-            self.snake_geoms.append(rect)
-            self.viewer.add_geom(rect)
+            square = self.get_square(*self.env.snake[i])
+            if i < len(self.snake_geoms):
+                self.snake_geoms[i].v = self.get_square(*self.env.snake[i])
+            else:
+                rect = rendering.make_polygon(v=square)
+                self.snake_geoms.append(rect)
+                self.viewer.add_geom(rect)
             i += 1
+        while i < len(self.viewer.geoms):
+            target = self.viewer.geoms[i]
+            if target == self.food_geom:
+                i += 1
+            else:
+                self.viewer.geoms.remove(target)
         return self.viewer.render(mode == "rgb_array")
     
     def close(self):
