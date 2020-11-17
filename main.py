@@ -8,6 +8,7 @@ from environ import SnakeEnv
 from model import CustomModel
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--phase", default="train")
 parser.add_argument("--restore", default=None)
 
 if __name__ == "__main__":
@@ -27,15 +28,21 @@ if __name__ == "__main__":
         "framework": "tf"
     }
     agent = PPOTrainer(config)
-    if args.restore:
+    if args.phase == "test":
+        assert args.restore is not None
         snake_env = SnakeEnv(config=env_config)
         agent.restore(args.restore)
         obs = snake_env.parse_state()
         while True:
             snake_env.render()
             action = agent.compute_action(obs)
-            obs, _, _, _ = snake_env.step(action)
+            obs, r, done, _ = snake_env.step(action)
+            if done:
+                snake_env.reset()
+                obs = snake_env.parse_state()
     else:
+        if args.restore is not None:
+            agent.restore(args.restore)
         i = 0
         while True:
             result = agent.train()
