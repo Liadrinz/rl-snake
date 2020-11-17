@@ -15,7 +15,9 @@ class SnakeEnv(gym.Env):
     def __init__(self, config: dict) -> None:
         self.config = config
         self.bx, self.by = config["board_shape"]
+        self._full_set = set([(x,y) for x in range(self.bx) for y in range(self.by)])
         self.snake = [np.array([self.bx // 2 + i, self.by // 2]).astype(int) for i in range(self.config["length"])]
+        self.food = None
         self.food = self.random_food()
         self.direction = 0  # 0-3: 左下右上
         self._direction_map = np.array([[-1,0],[0,-1],[1,0],[0,1]]).astype(int)
@@ -54,12 +56,11 @@ class SnakeEnv(gym.Env):
         return 0.1, False
     
     def random_food(self):
-        while True:
-            rx = np.random.randint(self.bx)
-            ry = np.random.randint(self.by)
-            food = np.array([rx, ry]).astype(int)
-            if not (food == self.snake).all(axis=1).any():
-                return food
+        choices_available = self._full_set.difference(set([(x, y) for x, y in self.snake]))
+        if self.food is not None:
+            choices_available = choices_available.difference(set([(*self.food,)]))
+        choice_idx = np.random.choice(np.arange(len(choices_available)))
+        return np.array(list(choices_available)[choice_idx])
     
     def parse_state(self) -> List:
         space = np.zeros(self.config["board_shape"])
