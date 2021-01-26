@@ -22,7 +22,7 @@ class SnakeEnv(gym.Env):
         self.direction = 0  # 0-3: 左下右上
         self._direction_map = np.array([[-1,0],[0,-1],[1,0],[0,1]]).astype(int)
         self.action_space = Discrete(5)  # 0-4: 无左下右上
-        self.observation_space = Box(0, 2, shape=config["board_shape"], dtype=np.float32)
+        self.observation_space = Box(0, 1, shape=(self.bx, self.by), dtype=np.float32)
         self.renderer = SnakeRenderer(self)
 
     def reset(self) -> List:
@@ -46,13 +46,13 @@ class SnakeEnv(gym.Env):
         if (self.snake[0] == self.food).all():
             self.snake.insert(0, self.food + self._direction_map[self.direction])
             self.food = self.random_food()
-            return 10.0, False
+            return 1.0, False
         # 撞墙(越界)
         if not ((0 <= self.snake[0][0] < self.bx) and (0 <= self.snake[0][1] < self.by)):
-            return -10.0, True
+            return -1000.0, True
         # 撞到自己
         if (self.snake[0] == self.snake[1:]).all(axis=1).any():
-            return -10.0, True
+            return -1000.0, True
         return 0.1, False
     
     def random_food(self):
@@ -63,16 +63,36 @@ class SnakeEnv(gym.Env):
         return np.array(list(choices_available)[choice_idx])
     
     def parse_state(self) -> List:
-        space = np.zeros(self.config["board_shape"])
-        space[self.food] = 2.0
-        for pos in self.snake:
-            if not ((0 <= pos[0] < self.bx) and (0 <= pos[1] < self.by)):
-                continue
-            space[pos] = 1.0
-        return space
+        flat_vec = np.array([self.by, 1]).astype(int)
+        space = np.zeros((self.bx * self.by, ))
+        space[np.sum(self.food * flat_vec)] = 1/3
+        indices = np.sum(self.snake * flat_vec, axis=1).tolist()
+        indices.sort()
+        pivot = self._pivot(indices, self.bx * self.by, 0, len(indices))
+        indices = indices[:pivot]
+        space[indices] = 2/3
+        head = np.sum(self.snake[0] * flat_vec)
+        if head < self.bx * self.by:
+            space[head] = 1.0
+        return space.reshape((self.bx, self.by))
 
     def render(self, mode="human"):
         return self.renderer.render(mode)
     
     def close(self):
         return self.renderer.close()
+    
+    def _dist(self):
+        return np.sum(np.abs(self.food - self.snake[0]))
+    
+    def _pivot(self, sorted_list, v, l, r):
+        m = (l + r) // 2
+        if r - l <= 1:
+            if v <= sorted_list[m]:
+                return l
+            else:
+                return r
+        if v <= sorted_list[m]:
+            return self._pivot(sorted_list, v, l, m)
+        else:
+            return self._pivot(sorted_list, v, m, r)

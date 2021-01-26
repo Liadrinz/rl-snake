@@ -1,58 +1,69 @@
 import argparse
-import time
+import gym
 import ray
-from ray import tune
-from ray.rllib.models import ModelCatalog
-from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.agents.dqn import DQNTrainer
 
 from environ import SnakeEnv
-from model import CustomModel
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--phase", default="train")
+parser.add_argument("--test", action="store_true", default=False)
 parser.add_argument("--restore", default=None)
+
+def train_one_step():
+    result = agent.train()
+    fields = ["episode_reward_max", "episode_reward_min", "episode_reward_mean", "episode_len_mean"]
+    print(", ".join(["{}: {}".format(k, result[k]) for k in result if k in fields]))
+
+def save_ckpt():
+    ckpt_path = agent.save()
+    print("saved to {}".format(ckpt_path))
+
+def simulate_one_game(render=False):
+    score = 0
+    obs = snake_env.reset()
+    while True:
+        if render: snake_env.render()
+        action = agent.compute_action(obs)
+        obs, r, done, _ = snake_env.step(action)
+        if r == 1.0:
+            score += 1
+        if done:
+            snake_env.reset()
+            break
+    return score
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    ray.init()
-    ModelCatalog.register_custom_model("my_model", CustomModel)
-    env_config = {"board_shape": [16, 16], "length": 5}
+    ray.init(num_gpus=1)
+    env_config = {"board_shape": [8, 8], "length": 3}
     config = {
         "env": SnakeEnv,
         "env_config": env_config,
         "num_gpus": 1,
-        "model": {
-            "custom_model": "my_model"
-        },
-        "vf_share_layers": True,
         "lr": 1e-4,
-        "framework": "tf"
+        "hiddens": [32, 64, 512]
     }
-    agent = PPOTrainer(config)
-    if args.phase == "test":
+    agent = DQNTrainer(config=config)
+    snake_env = SnakeEnv(config=env_config)
+    if args.test:
         assert args.restore is not None
-        snake_env = SnakeEnv(config=env_config)
         agent.restore(args.restore)
-        obs = snake_env.parse_state()
         while True:
-            snake_env.render()
-            action = agent.compute_action(obs)
-            obs, r, done, _ = snake_env.step(action)
-            if done:
-                time.sleep(1)
-                print("dead")
-                snake_env.reset()
-                obs = snake_env.parse_state()
+            score = simulate_one_game(render=True)
+            print("Score: {}".format(score))
     else:
         if args.restore is not None:
             agent.restore(args.restore)
-        i = 0
+            i = agent.iteration
+        else:
+            i = 0
         while True:
-            result = agent.train()
-            fields = ["episode_reward_max", "episode_reward_min", "episode_reward_mean", "episode_len_mean"]
-            print(", ".join(["{}: {}".format(k, result[k]) for k in result if k in fields]))
+            train_one_step()
             if i % 10 == 0:
-                ckpt_path = agent.save()
-                print("saved to {}".format(ckpt_path))
+                save_ckpt()
+                # avg_score = 0
+                # for _ in range(100):
+                #     avg_score += simulate_one_game() / 100
+                # print("Avg score: {}".format(avg_score))
             i += 1
     ray.shutdown()
