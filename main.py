@@ -2,6 +2,7 @@ import argparse
 import gym
 import ray
 from ray.rllib.agents.dqn import DQNTrainer
+from ray.rllib.agents.ppo import PPOTrainer
 
 from environ import SnakeEnv
 
